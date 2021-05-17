@@ -1,0 +1,188 @@
+{
+  "pipelineSpec": {
+    "deploymentSpec": {
+      "executors": {
+        "exec-generateexamples": {
+          "container": {
+            "image": "gcr.io/rthallam-demo-project/custom-container-generate:rthallam",
+            "command": [
+              "python",
+              "/pipeline/generate_examples.py"
+            ],
+            "args": [
+              "--training_data_uri",
+              "{{$.outputs.artifacts['training_data'].uri}}",
+              "--test_data_uri",
+              "{{$.outputs.artifacts['test_data'].uri}}",
+              "--config_file_uri",
+              "{{$.outputs.artifacts['config_file'].uri}}"
+            ]
+          }
+        },
+        "exec-train": {
+          "container": {
+            "resources": {
+              "cpuLimit": 4.0,
+              "accelerator": {
+                "type": "NVIDIA_TESLA_K80",
+                "count": "1"
+              },
+              "memoryLimit": 15.032385536
+            },
+            "args": [
+              "--training_data_uri",
+              "{{$.inputs.artifacts['training_data'].uri}}",
+              "--test_data_uri",
+              "{{$.inputs.artifacts['test_data'].uri}}",
+              "--config_file_uri",
+              "{{$.inputs.artifacts['config_file'].uri}}",
+              "--output_model_uri",
+              "{{$.outputs.artifacts['model'].uri}}",
+              "--output_metrics_uri",
+              "{{$.outputs.artifacts['metrics'].uri}}"
+            ],
+            "image": "gcr.io/rthallam-demo-project/custom-container-train:rthallam",
+            "command": [
+              "python",
+              "/pipeline/train_examples.py"
+            ]
+          }
+        }
+      }
+    },
+    "root": {
+      "outputDefinitions": {
+        "artifacts": {
+          "task-train-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics"
+            }
+          }
+        }
+      },
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "task-train-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "metrics",
+                  "producerSubtask": "task-train"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "task-train": {
+            "dependentTasks": [
+              "task-generateexamples"
+            ],
+            "componentRef": {
+              "name": "comp-train"
+            },
+            "taskInfo": {
+              "name": "task-train"
+            },
+            "inputs": {
+              "artifacts": {
+                "training_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "training_data",
+                    "producerTask": "task-generateexamples"
+                  }
+                },
+                "test_data": {
+                  "taskOutputArtifact": {
+                    "producerTask": "task-generateexamples",
+                    "outputArtifactKey": "test_data"
+                  }
+                },
+                "config_file": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "config_file",
+                    "producerTask": "task-generateexamples"
+                  }
+                }
+              }
+            }
+          },
+          "task-generateexamples": {
+            "componentRef": {
+              "name": "comp-generateexamples"
+            },
+            "taskInfo": {
+              "name": "task-generateexamples"
+            }
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "custom-container-pipeline-rthallam-1619757676"
+    },
+    "components": {
+      "comp-generateexamples": {
+        "executorLabel": "exec-generateexamples",
+        "outputDefinitions": {
+          "artifacts": {
+            "config_file": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact"
+              }
+            },
+            "test_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset"
+              }
+            },
+            "training_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset"
+              }
+            }
+          }
+        }
+      },
+      "comp-train": {
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model"
+              }
+            },
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "artifacts": {
+            "training_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset"
+              }
+            },
+            "config_file": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact"
+              }
+            },
+            "test_data": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset"
+              }
+            }
+          }
+        },
+        "executorLabel": "exec-train"
+      }
+    },
+    "sdkVersion": "kfp-1.5.0-rc.5",
+    "schemaVersion": "2.0.0"
+  },
+  "runtimeConfig": {}
+}

@@ -1,0 +1,516 @@
+strict digraph "" {
+	"Execution
+aiplatform.NotebookExecution
+d26183a3-efbb-404e-939d-87382e19bf01
+name: Data Reader
+uri: http://archive.../auto-mpg.data
+\
+data uri: http://archive.../auto-mpg.data" -> "Artifact
+aiplatform.Dataset
+d58f32b0-9549-4dfb-ad24-ec2cf6c1e604
+uri: 
+name: Raw Auto MPG Data
+";
+	"Execution
+aiplatform.NotebookExecution
+c0bbe806-5367-4ada-8409-2bdd84596e50
+name: Data Cleaner
+" -> "Artifact
+aiplatform.Dataset
+4a808a8a-382f-48a5-841e-81c938375b84
+uri: 
+name: Cleaned Auto MPG Data
+";
+	"Execution
+aiplatform.NotebookExecution
+c0bbe806-5367-4ada-8409-2bdd84596e50
+name: Data Cleaner
+" -> "Artifact
+aiplatform.Metric
+515f203d-61a3-4a5a-ac10-241f0ddba74c
+uri: 
+metric_type: inline_scalars
+num_records: 392";
+	"Execution
+aiplatform.NotebookExecution
+a645be38-e0a9-4e6e-a640-ced4d2f054c6
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+5cc6e0fc-d35d-4bb8-b474-7ac64a9056a2
+uri: 
+name: Train Data
+";
+	"Execution
+aiplatform.NotebookExecution
+a645be38-e0a9-4e6e-a640-ced4d2f054c6
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+99393886-b538-49e4-8511-1acd66ffcd09
+uri: 
+name: Test Data
+";
+	"Execution
+aiplatform.NotebookExecution
+a645be38-e0a9-4e6e-a640-ced4d2f054c6
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+f7816fbb-49d5-47cb-b51b-35d2a6ad0b38
+uri: 
+name: Train Labels
+";
+	"Execution
+aiplatform.NotebookExecution
+a645be38-e0a9-4e6e-a640-ced4d2f054c6
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+1714ccb6-33ea-47f3-8e21-4e715477efbe
+uri: 
+name: Test Labels
+";
+	"Execution
+aiplatform.NotebookExecution
+4533b6ba-05ea-40d4-a28e-b4ab04d18824
+name: Data Normalizer
+" -> "Artifact
+aiplatform.Dataset
+ed771084-4d7c-453d-a79b-574206ca49ef
+uri: 
+name: Normalized Train Data
+";
+	"Execution
+aiplatform.NotebookExecution
+4533b6ba-05ea-40d4-a28e-b4ab04d18824
+name: Data Normalizer
+" -> "Artifact
+aiplatform.Dataset
+f5082dab-b77c-427c-899b-a3b1f631c481
+uri: 
+name: Normalized Test Data
+";
+	"Execution
+aiplatform.NotebookExecution
+d20c5ab5-49d8-40e6-9bb2-0dac1d628711
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu" -> "Artifact
+aiplatform.Model
+ae5e14fd-4654-4eaf-880a-51007c56e9af
+uri: 
+name: MPG DNN Model
+";
+	"Execution
+aiplatform.NotebookExecution
+d20c5ab5-49d8-40e6-9bb2-0dac1d628711
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu" -> "Artifact
+aiplatform.Metric
+692be33c-045f-4706-8176-03061203a658
+uri: 
+metric_type: inline_scalars
+val_mse: 582.253479
+val_mae: 22.732031
+\
+val_loss: 582.253479
+mse: 562.945618
+mae: 22.356142
+loss: 562.945618";
+	"Execution
+aiplatform.NotebookExecution
+68683db4-0d40-48e7-9c1c-ff1800f8256e
+name: Evaluator
+" -> "Artifact
+aiplatform.Metric
+f5e8c5d5-53f7-4e31-bb5d-95f5a51051e0
+uri: 
+metric_type: inline_scalars
+test_mse: 603.052612
+test_mae: \
+23.086817
+test_loss: 603.052612";
+	"Execution
+aiplatform.NotebookExecution
+9c78bbc0-0789-4630-8cfb-1523024a4f5d
+name: Data Reader
+uri: http://archive.../auto-mpg.data
+\
+data uri: http://archive.../auto-mpg.data" -> "Artifact
+aiplatform.Dataset
+d5dd5cf9-b422-476a-b1d1-812e00c9237e
+uri: 
+name: Raw Auto MPG Data
+";
+	"Execution
+aiplatform.NotebookExecution
+a79af4b8-a8d6-467e-86d3-c698f5f45af4
+name: Data Reader
+uri: http://archive.../auto-mpg.data
+\
+data uri: http://archive.../auto-mpg.data" -> "Artifact
+aiplatform.Dataset
+eda55868-62d9-4222-bcee-e5c4bba5005d
+uri: 
+name: Raw Auto MPG Data
+";
+	"Execution
+aiplatform.NotebookExecution
+3ce1cc85-f16d-42ba-9090-9deadd045067
+name: Data Cleaner
+" -> "Artifact
+aiplatform.Dataset
+0e8a2ddf-e957-40a7-b000-3ac5b5557d18
+uri: 
+name: Cleaned Auto MPG Data
+";
+	"Execution
+aiplatform.NotebookExecution
+3ce1cc85-f16d-42ba-9090-9deadd045067
+name: Data Cleaner
+" -> "Artifact
+aiplatform.Metric
+b638d167-086d-4c1f-8bbc-b81db54f2444
+uri: 
+metric_type: inline_scalars
+num_records: 392";
+	"Execution
+aiplatform.NotebookExecution
+8daafb0c-e41c-4f8e-bdf7-ba4859893e20
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+a7733bad-1444-433a-99ba-8eca5a871ec0
+uri: 
+name: Train Data
+";
+	"Execution
+aiplatform.NotebookExecution
+8daafb0c-e41c-4f8e-bdf7-ba4859893e20
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+65881e98-365b-4e74-9134-cac62c6a6c01
+uri: 
+name: Test Data
+";
+	"Execution
+aiplatform.NotebookExecution
+8daafb0c-e41c-4f8e-bdf7-ba4859893e20
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+9a22b0a9-f544-4be6-8270-11ac86e82ef1
+uri: 
+name: Train Labels
+";
+	"Execution
+aiplatform.NotebookExecution
+8daafb0c-e41c-4f8e-bdf7-ba4859893e20
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0" -> "Artifact
+aiplatform.Dataset
+905f6469-5b30-419a-89bd-78bfd9aedd01
+uri: 
+name: Test Labels
+";
+	"Execution
+aiplatform.NotebookExecution
+7c6e940f-53b1-47ad-a73e-f19a05acc94f
+name: Data Normalizer
+" -> "Artifact
+aiplatform.Dataset
+ce398463-581e-479d-9649-2d94f43d89f8
+uri: 
+name: Normalized Train Data
+";
+	"Execution
+aiplatform.NotebookExecution
+7c6e940f-53b1-47ad-a73e-f19a05acc94f
+name: Data Normalizer
+" -> "Artifact
+aiplatform.Dataset
+39b4af37-464a-49b7-9e53-b58a04cf7ed1
+uri: 
+name: Normalized Test Data
+";
+	"Execution
+aiplatform.NotebookExecution
+0d455816-fb5b-4c64-ab98-e140d64bd1b7
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu" -> "Artifact
+aiplatform.Model
+87b25773-9d1d-4d09-bd77-2e424700d610
+uri: 
+name: MPG DNN Model
+";
+	"Execution
+aiplatform.NotebookExecution
+0d455816-fb5b-4c64-ab98-e140d64bd1b7
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu" -> "Artifact
+aiplatform.Metric
+af1a303b-acee-400c-83d3-f47263e1fc95
+uri: 
+metric_type: inline_scalars
+val_mse: 613.741455
+val_mae: 23.594761
+\
+val_loss: 613.741455
+mse: 591.854004
+mae: 23.146446
+loss: 591.854004";
+	"Execution
+aiplatform.NotebookExecution
+d1a6d51f-e41e-4bf8-b646-d766aafddd78
+name: Evaluator
+" -> "Artifact
+aiplatform.Metric
+7cf2e969-86aa-4cce-a64f-ebf1d015200a
+uri: 
+metric_type: inline_scalars
+test_mse: 629.019104
+test_mae: \
+23.822012
+test_loss: 629.019104";
+	"Artifact
+aiplatform.Dataset
+d58f32b0-9549-4dfb-ad24-ec2cf6c1e604
+uri: 
+name: Raw Auto MPG Data
+" -> "Execution
+aiplatform.NotebookExecution
+c0bbe806-5367-4ada-8409-2bdd84596e50
+name: Data Cleaner
+";
+	"Artifact
+aiplatform.Dataset
+4a808a8a-382f-48a5-841e-81c938375b84
+uri: 
+name: Cleaned Auto MPG Data
+" -> "Execution
+aiplatform.NotebookExecution
+a645be38-e0a9-4e6e-a640-ced4d2f054c6
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0";
+	"Artifact
+aiplatform.Dataset
+5cc6e0fc-d35d-4bb8-b474-7ac64a9056a2
+uri: 
+name: Train Data
+" -> "Execution
+aiplatform.NotebookExecution
+4533b6ba-05ea-40d4-a28e-b4ab04d18824
+name: Data Normalizer
+";
+	"Artifact
+aiplatform.Dataset
+99393886-b538-49e4-8511-1acd66ffcd09
+uri: 
+name: Test Data
+" -> "Execution
+aiplatform.NotebookExecution
+4533b6ba-05ea-40d4-a28e-b4ab04d18824
+name: Data Normalizer
+";
+	"Artifact
+aiplatform.Dataset
+f7816fbb-49d5-47cb-b51b-35d2a6ad0b38
+uri: 
+name: Train Labels
+" -> "Execution
+aiplatform.NotebookExecution
+d20c5ab5-49d8-40e6-9bb2-0dac1d628711
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu";
+	"Artifact
+aiplatform.Dataset
+1714ccb6-33ea-47f3-8e21-4e715477efbe
+uri: 
+name: Test Labels
+" -> "Execution
+aiplatform.NotebookExecution
+68683db4-0d40-48e7-9c1c-ff1800f8256e
+name: Evaluator
+";
+	"Artifact
+aiplatform.Dataset
+ed771084-4d7c-453d-a79b-574206ca49ef
+uri: 
+name: Normalized Train Data
+" -> "Execution
+aiplatform.NotebookExecution
+d20c5ab5-49d8-40e6-9bb2-0dac1d628711
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu";
+	"Artifact
+aiplatform.Dataset
+f5082dab-b77c-427c-899b-a3b1f631c481
+uri: 
+name: Normalized Test Data
+" -> "Execution
+aiplatform.NotebookExecution
+68683db4-0d40-48e7-9c1c-ff1800f8256e
+name: Evaluator
+";
+	"Artifact
+aiplatform.Model
+ae5e14fd-4654-4eaf-880a-51007c56e9af
+uri: 
+name: MPG DNN Model
+" -> "Execution
+aiplatform.NotebookExecution
+68683db4-0d40-48e7-9c1c-ff1800f8256e
+name: Evaluator
+";
+	"Artifact
+aiplatform.Dataset
+eda55868-62d9-4222-bcee-e5c4bba5005d
+uri: 
+name: Raw Auto MPG Data
+" -> "Execution
+aiplatform.NotebookExecution
+3ce1cc85-f16d-42ba-9090-9deadd045067
+name: Data Cleaner
+";
+	"Artifact
+aiplatform.Dataset
+0e8a2ddf-e957-40a7-b000-3ac5b5557d18
+uri: 
+name: Cleaned Auto MPG Data
+" -> "Execution
+aiplatform.NotebookExecution
+8daafb0c-e41c-4f8e-bdf7-ba4859893e20
+name: Data Splitter
+split_fraction: 0.8
+random_state: \
+0";
+	"Artifact
+aiplatform.Dataset
+a7733bad-1444-433a-99ba-8eca5a871ec0
+uri: 
+name: Train Data
+" -> "Execution
+aiplatform.NotebookExecution
+7c6e940f-53b1-47ad-a73e-f19a05acc94f
+name: Data Normalizer
+";
+	"Artifact
+aiplatform.Dataset
+65881e98-365b-4e74-9134-cac62c6a6c01
+uri: 
+name: Test Data
+" -> "Execution
+aiplatform.NotebookExecution
+7c6e940f-53b1-47ad-a73e-f19a05acc94f
+name: Data Normalizer
+";
+	"Artifact
+aiplatform.Dataset
+9a22b0a9-f544-4be6-8270-11ac86e82ef1
+uri: 
+name: Train Labels
+" -> "Execution
+aiplatform.NotebookExecution
+0d455816-fb5b-4c64-ab98-e140d64bd1b7
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu";
+	"Artifact
+aiplatform.Dataset
+905f6469-5b30-419a-89bd-78bfd9aedd01
+uri: 
+name: Test Labels
+" -> "Execution
+aiplatform.NotebookExecution
+d1a6d51f-e41e-4bf8-b646-d766aafddd78
+name: Evaluator
+";
+	"Artifact
+aiplatform.Dataset
+ce398463-581e-479d-9649-2d94f43d89f8
+uri: 
+name: Normalized Train Data
+" -> "Execution
+aiplatform.NotebookExecution
+0d455816-fb5b-4c64-ab98-e140d64bd1b7
+name: Trainer
+validation_split: 0.2
+num_units: 16
+epochs: \
+3
+dropout_rate: 0.1
+activation: relu";
+	"Artifact
+aiplatform.Dataset
+39b4af37-464a-49b7-9e53-b58a04cf7ed1
+uri: 
+name: Normalized Test Data
+" -> "Execution
+aiplatform.NotebookExecution
+d1a6d51f-e41e-4bf8-b646-d766aafddd78
+name: Evaluator
+";
+	"Artifact
+aiplatform.Model
+87b25773-9d1d-4d09-bd77-2e424700d610
+uri: 
+name: MPG DNN Model
+" -> "Execution
+aiplatform.NotebookExecution
+d1a6d51f-e41e-4bf8-b646-d766aafddd78
+name: Evaluator
+";
+}
