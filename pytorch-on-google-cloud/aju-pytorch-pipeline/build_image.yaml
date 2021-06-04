@@ -1,13 +1,14 @@
-name: Cifar train
+name: Build torchserve image
 inputs:
 - {name: model_name, type: String}
-- {name: max_epochs, type: Integer}
-- {name: cifar_dataset, type: Dataset}
+- {name: cifar_mar, type: Model}
+- {name: cifar_config, type: Artifact}
+- {name: project, type: String}
 outputs:
-- {name: cifar_model, type: Model}
+- {name: serving_container_uri, type: String}
 implementation:
   container:
-    image: gcr.io/google-samples/pytorch-pl-gpu:v1
+    image: gcr.io/deeplearning-platform-release/tf2-gpu.2-3:latest
     command:
     - sh
     - -ec
@@ -359,51 +360,42 @@ implementation:
       \ = self._get_output_parameter_path(k)\n        else:\n          func_kwargs[k]\
       \ = self._get_output_artifact_path(k)\n      elif isinstance(v, InputPath):\n\
       \        func_kwargs[k] = self._get_input_artifact_path(k)\n\n    result = self._func(**func_kwargs)\n\
-      \    self._write_executor_output(result)\n\n\ndef cifar_train(\n    model_name:\
-      \ str,\n    max_epochs: int,\n    cifar_dataset: Input[Dataset],\n    cifar_model:\
-      \ Output[Model],\n):\n\n    import pytorch_lightning as pl\n    import logging\n\
-      \    import os\n    import sys\n\n    from pytorch_pipeline.components.trainer.component\
-      \ import Trainer\n    from argparse import ArgumentParser\n    from pytorch_lightning.loggers\
-      \ import TensorBoardLogger\n    from pytorch_lightning.callbacks import (\n\
-      \        EarlyStopping,\n        LearningRateMonitor,\n        ModelCheckpoint,\n\
-      \    )\n\n    logging.getLogger().setLevel(logging.INFO)\n    logging.info('datset\
-      \ root path: %s', cifar_dataset.path)\n    logging.info('model root path: %s',\
-      \ cifar_model.path)\n    model_output_root = cifar_model.path\n\n\n    # Argument\
-      \ parser for user defined paths\n    parser = ArgumentParser()\n\n    parser.add_argument(\n\
-      \        \"--tensorboard_root\",\n        type=str,\n        default=f\"{model_output_root}/tensorboard\"\
-      ,\n        help=\"Tensorboard Root path (default: output/tensorboard)\",\n \
-      \   )\n\n    parser.add_argument(\n        \"--checkpoint_dir\",\n        type=str,\n\
-      \        default=f\"{model_output_root}/train/models\",\n        help=\"Path\
-      \ to save model checkpoints \",\n    )\n\n    parser.add_argument(\n       \
-      \ \"--dataset_path\",\n        type=str,\n        default=cifar_dataset.path,\n\
-      \        help=\"Cifar10 Dataset path (default: output/processing)\",\n    )\n\
-      \n    parser.add_argument(\n        \"--model_name\",\n        type=str,\n \
-      \       default=\"resnet.pth\",\n        help=\"Name of the model to be saved\
-      \ as (default: resnet.pth)\",\n    )\n\n    sys.argv = sys.argv[:1]\n\n    logging.info('datset\
-      \ root path: %s', cifar_dataset.path)\n    logging.info('model root path: %s',\
-      \ cifar_model.path)   \n\n    parser = pl.Trainer.add_argparse_args(parent_parser=parser)\n\
-      \    args = vars(parser.parse_args())\n    logging.info('args after processing:\
-      \ %s', args)\n    print('args after processing: {}'.format(args), flush=True)\n\
-      \n    # Enabling Tensorboard Logger, ModelCheckpoint, Earlystopping\n    lr_logger\
-      \ = LearningRateMonitor()\n    tboard = TensorBoardLogger(f\"{model_output_root}/tensorboard\"\
-      )\n\n    early_stopping = EarlyStopping(monitor=\"val_loss\", mode=\"min\",\
-      \ patience=5, verbose=True)\n    checkpoint_callback = ModelCheckpoint(\n  \
-      \      dirpath=f\"{model_output_root}/train/models\",\n        filename=\"cifar10_{epoch:02d}\"\
-      ,\n        save_top_k=1,\n        verbose=True,\n        monitor=\"val_loss\"\
-      ,\n        mode=\"min\",\n    )\n\n    # Setting the trainer specific arguments\n\
-      \    trainer_args = {\n        \"logger\": tboard,\n        \"profiler\": \"\
-      pytorch\",\n        \"checkpoint_callback\": True,\n        \"max_epochs\":\
-      \ max_epochs,\n        \"callbacks\": [lr_logger, early_stopping, checkpoint_callback],\n\
-      \        \"gpus\": 1\n    }\n\n    # Setting the datamodule specific arguments\n\
-      \    data_module_args = {\"train_glob\": cifar_dataset.path}\n\n    # Initiating\
-      \ the training process\n    logging.info(\"about to call the Trainer...\")\n\
-      \n    trainer = Trainer(\n        module_file=\"cifar10_train.py\",\n      \
-      \  data_module_file=\"cifar10_datamodule.py\",\n        module_file_args=parser,\n\
-      \        data_module_args=data_module_args,\n        trainer_args=trainer_args,\n\
-      \    )\n\n\ndef executor_main():\n  import argparse\n  import json\n\n  parser\
-      \ = argparse.ArgumentParser(description='Process some integers.')\n  parser.add_argument('--executor_input',\
-      \ type=str)\n  parser.add_argument('--function_to_execute', type=str)\n\n  args,\
-      \ _ = parser.parse_known_args()\n  executor_input = json.loads(args.executor_input)\n\
+      \    self._write_executor_output(result)\n\n\ndef build_torchserve_image(\n\
+      \    model_name: str,\n    cifar_mar: Input[Model],\n    cifar_config: Input[Artifact],\n\
+      \    project: str,\n)-> NamedTuple(\n    \"Outputs\",\n    [\n        (\"serving_container_uri\"\
+      , str), \n    ],\n):\n\n    from datetime import datetime\n    import logging\n\
+      \    import os\n\n    # from pathlib import Path\n    # import subprocess\n\
+      \    import google.auth\n    from google.cloud.devtools import cloudbuild_v1\n\
+      \n    logging.getLogger().setLevel(logging.INFO)\n    credentials, project_id\
+      \ = google.auth.default()\n    client = cloudbuild_v1.services.cloud_build.CloudBuildClient()\n\
+      \n    mar_model_name = f\"{model_name}.mar\"\n    build_version = datetime.now().strftime(\"\
+      %Y%m%d%H%M%S\")\n\n    dockerfile_path = os.path.join(cifar_config.path, 'Dockerfile')\n\
+      \    gs_dockerfile_path = dockerfile_path.replace(\"/gcs/\", \"gs://\")\n  \
+      \  config_prop_path = os.path.join(cifar_config.path, 'config.properties')\n\
+      \    gs_config_prop_path = config_prop_path.replace(\"/gcs/\", \"gs://\")\n\n\
+      \    export_path = f\"{cifar_mar.path}/model-store\"\n    model_path = os.path.join(export_path,\
+      \ mar_model_name)\n    gs_model_path = model_path.replace(\"/gcs/\", \"gs://\"\
+      )\n    logging.warning(\"gs_model_path: %s\", gs_model_path)\n    # config_properties_path\
+      \ = (\n    #     \"/gcs/aju-pipelines/pytorch_temp/cifar_config/config.properties\"\
+      \n    # )\n    image_uri = f\"gcr.io/{project}/torchservetest:{build_version}\"\
+      \n    logging.info(\"image uri: %s\", image_uri)\n\n    build = cloudbuild_v1.Build(\n\
+      \        images=[image_uri]\n    )\n    build.steps = [\n        {\n       \
+      \     \"name\": \"gcr.io/cloud-builders/gsutil\",\n            \"args\": [\n\
+      \                \"cp\",\n                gs_config_prop_path,\n           \
+      \     \"config.properties\",\n            ],\n        },\n        {\n      \
+      \      \"name\": \"gcr.io/cloud-builders/gsutil\",\n            \"args\": [\"\
+      cp\", f\"{gs_model_path}\", f\"{mar_model_name}\"],\n        },\n        {\n\
+      \            \"name\": \"gcr.io/cloud-builders/gsutil\",\n            \"args\"\
+      : [\n                \"cp\",\n                gs_dockerfile_path,\n        \
+      \        \"Dockerfile\",\n            ],\n        },\n        {\n          \"\
+      name\": 'gcr.io/cloud-builders/docker',\n          \"args\": [ 'build', '-t',\
+      \ image_uri, '.' ]\n        }\n    ]\n    operation = client.create_build(project_id=project,\
+      \ build=build)\n    print(\"IN PROGRESS:\")\n    print(operation.metadata)\n\
+      \n    result = operation.result()\n    # Print the completed status\n    print(\"\
+      RESULT:\", result.status)\n    return(image_uri,)\n\n\ndef executor_main():\n\
+      \  import argparse\n  import json\n\n  parser = argparse.ArgumentParser(description='Process\
+      \ some integers.')\n  parser.add_argument('--executor_input', type=str)\n  parser.add_argument('--function_to_execute',\
+      \ type=str)\n\n  args, _ = parser.parse_known_args()\n  executor_input = json.loads(args.executor_input)\n\
       \  function_to_execute = globals()[args.function_to_execute]\n\n  executor =\
       \ Executor(executor_input=executor_input,\n                      function_to_execute=function_to_execute)\n\
       \n  executor.execute()\n\n\nif __name__ == '__main__':\n  executor_main()\n"
@@ -411,12 +403,14 @@ implementation:
     - --executor_input
     - {executorInput: null}
     - --function_to_execute
-    - cifar_train
+    - build_torchserve_image
     - --model-name-output-path
     - {inputValue: model_name}
-    - --max-epochs-output-path
-    - {inputValue: max_epochs}
-    - --cifar-dataset-output-path
-    - {inputPath: cifar_dataset}
-    - --cifar-model-output-path
-    - {outputPath: cifar_model}
+    - --cifar-mar-output-path
+    - {inputPath: cifar_mar}
+    - --cifar-config-output-path
+    - {inputPath: cifar_config}
+    - --project-output-path
+    - {inputValue: project}
+    - --serving-container-uri
+    - {outputPath: serving_container_uri}

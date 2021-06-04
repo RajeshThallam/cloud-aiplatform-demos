@@ -1,6 +1,13 @@
-name: Cifar preproc
+name: Generate mar file
+inputs:
+- {name: model_name, type: String}
+- {name: mar_model_name, type: String}
+- {name: handler, type: String}
+- {name: version, type: String}
+- {name: config_properties, type: String}
+- {name: cifar_model, type: Model}
 outputs:
-- {name: cifar_dataset, type: Dataset}
+- {name: cifar_mar, type: Model}
 implementation:
   container:
     image: gcr.io/google-samples/pytorch-pl:v1
@@ -802,59 +809,116 @@ implementation:
           self._write_executor_output(result)
 
 
-      def cifar_preproc(
-          cifar_dataset: Output[Dataset],
+      def generate_mar_file(
+          model_name: str,
+          mar_model_name: str,
+          handler: str,
+          version: str,
+          config_properties: str,
+          cifar_model: Input[Model],
+          cifar_mar: Output[Model],
       ):
 
-          import subprocess
           import logging
+          import pytorch_lightning as pl
+          import os
+          import subprocess
+
           from pathlib import Path
 
-          import torchvision
-          import webdataset as wds
-          from sklearn.model_selection import train_test_split
+          # from pytorch_pipeline.components.mar.mar_generation import MarGeneration
+
+          def _validate_mar_config(mar_config):
+              mandatory_args = [
+                  "MODEL_NAME",
+                  "SERIALIZED_FILE",
+                  "MODEL_FILE",
+                  "HANDLER",
+                  "VERSION",
+                  "CONFIG_PROPERTIES",
+              ]
+              missing_list = []
+              for key in mandatory_args:
+                  if key not in mar_config:
+                      missing_list.append(key)
+
+              if missing_list:
+                  logging.warning("The following Mandatory keys are missing in the config file {} ".format(
+                          missing_list))
+                  raise Exception(
+                      "Following Mandatory keys are missing in the config file {} ".format(
+                          missing_list))
 
           logging.getLogger().setLevel(logging.INFO)
-          logging.info("Dataset path is: %s", cifar_dataset.path)
-          output_pth = cifar_dataset.path
 
-          Path(output_pth).mkdir(parents=True, exist_ok=True)
+          model_output_root = cifar_model.path
+          mar_output_root = cifar_mar.path
+          export_path = f"{mar_output_root}/model-store"
+          Path(export_path).mkdir(parents=True, exist_ok=True)
 
-          trainset = torchvision.datasets.CIFAR10(
-              root="./", train=True, download=True
+          mar_config = {
+              "MODEL_NAME": mar_model_name,
+              "MODEL_FILE": "pytorch_pipeline/examples/cifar10/cifar10_train.py",
+              # "HANDLER": "image_classifier",
+              "HANDLER": handler,
+              "SERIALIZED_FILE": os.path.join(
+                  # args["checkpoint_dir"], args["model_name"]
+                  f"{model_output_root}/train/models",
+                  model_name,
+              ),
+              # "VERSION": "1",
+              "VERSION": version,
+              # "EXPORT_PATH": args["checkpoint_dir"],
+              "EXPORT_PATH": f"{cifar_mar.path}/model-store",
+              # "CONFIG_PROPERTIES": "https://kubeflow-dataset.s3.us-east-2.amazonaws.com/config.properties",
+              "CONFIG_PROPERTIES": config_properties,
+          }
+          logging.warning("mar_config: %s", mar_config)
+          print(f"mar_config: {mar_config}")
+          try:
+              logging.info("validating config")
+              _validate_mar_config(mar_config)
+          # temp testing
+          except Exception as e:
+            logging.warning(e)
+            # return
+
+          archiver_cmd = "torch-model-archiver --force --model-name {MODEL_NAME} --serialized-file {SERIALIZED_FILE} --model-file {MODEL_FILE} --handler {HANDLER} -v {VERSION}".format(
+              MODEL_NAME=mar_config["MODEL_NAME"],
+              SERIALIZED_FILE=mar_config["SERIALIZED_FILE"],
+              MODEL_FILE=mar_config["MODEL_FILE"],
+              HANDLER=mar_config["HANDLER"],
+              VERSION=mar_config["VERSION"],
           )
-          testset = torchvision.datasets.CIFAR10(
-              root="./", train=False, download=True
-          )
+          if "EXPORT_PATH" in mar_config:
+              archiver_cmd += " --export-path {EXPORT_PATH}".format(
+                  EXPORT_PATH=mar_config["EXPORT_PATH"]
+              )
 
-          Path(output_pth + "/train").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/val").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/test").mkdir(parents=True, exist_ok=True)
+          if "EXTRA_FILES" in mar_config:
+              archiver_cmd += " --extra_files {EXTRA_FILES}".format(
+                  EXTRA_FILES=mar_config["EXTRA_FILES"]
+              )
 
-          random_seed = 25
-          y = trainset.targets
-          trainset, valset, y_train, y_val = train_test_split(
-              trainset,
-              y,
-              stratify=y,
-              shuffle=True,
-              test_size=0.2,
-              random_state=random_seed,
-          )
+          if "REQUIREMENTS_FILE" in mar_config:
+              archiver_cmd += " -r {REQUIREMENTS_FILE}".format(
+                  REQUIREMENTS_FILE=mar_config["REQUIREMENTS_FILE"]
+              )
 
-          for name in [(trainset, "train"), (valset, "val"), (testset, "test")]:
-              with wds.ShardWriter(
-                  output_pth + "/" + str(name[1]) + "/" + str(name[1]) + "-%d.tar",
-                  maxcount=1000,
-              ) as sink:
-                  for index, (image, cls) in enumerate(name[0]):
-                      sink.write(
-                          {"__key__": "%06d" % index, "ppm": image, "cls": cls}
+          print("Running Archiver cmd: ", archiver_cmd)
+          logging.warning("archiver command: %s", archiver_cmd)
+
+          try:
+              return_code = subprocess.Popen(archiver_cmd, shell=True).wait()
+              if return_code != 0:
+                  error_msg = (
+                      "Error running command {archiver_cmd} {return_code}".format(
+                          archiver_cmd=archiver_cmd, return_code=return_code
                       )
-
-          entry_point = ["ls", "-R", output_pth]
-          run_code = subprocess.run(entry_point, stdout=subprocess.PIPE)
-          print(run_code.stdout)
+                  )
+                  print(error_msg)
+          except Exception as e:
+              logging.warning(e)
 
 
       def executor_main():
@@ -881,6 +945,18 @@ implementation:
     - --executor_input
     - {executorInput: null}
     - --function_to_execute
-    - cifar_preproc
-    - --cifar-dataset-output-path
-    - {outputPath: cifar_dataset}
+    - generate_mar_file
+    - --model-name-output-path
+    - {inputValue: model_name}
+    - --mar-model-name-output-path
+    - {inputValue: mar_model_name}
+    - --handler-output-path
+    - {inputValue: handler}
+    - --version-output-path
+    - {inputValue: version}
+    - --config-properties-output-path
+    - {inputValue: config_properties}
+    - --cifar-model-output-path
+    - {inputPath: cifar_model}
+    - --cifar-mar-output-path
+    - {outputPath: cifar_mar}

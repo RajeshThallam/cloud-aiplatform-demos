@@ -1,9 +1,13 @@
-name: Cifar preproc
+name: Cifar config
+inputs:
+- {name: mar_model_name, type: String}
+- {name: version, type: String}
+- {name: port, type: Integer}
 outputs:
-- {name: cifar_dataset, type: Dataset}
+- {name: cifar_config, type: Artifact}
 implementation:
   container:
-    image: gcr.io/google-samples/pytorch-pl:v1
+    image: python:3.7
     command:
     - sh
     - -ec
@@ -802,59 +806,47 @@ implementation:
           self._write_executor_output(result)
 
 
-      def cifar_preproc(
-          cifar_dataset: Output[Dataset],
+      def cifar_config(
+          mar_model_name: str,
+          version: str,
+          port: int,
+          cifar_config: Output[Artifact],
       ):
-
-          import subprocess
-          import logging
+          import os
           from pathlib import Path
 
-          import torchvision
-          import webdataset as wds
-          from sklearn.model_selection import train_test_split
+          Path(cifar_config.path).mkdir(parents=True, exist_ok=True)
 
-          logging.getLogger().setLevel(logging.INFO)
-          logging.info("Dataset path is: %s", cifar_dataset.path)
-          output_pth = cifar_dataset.path
+          config_properties = f"""inference_address=http://0.0.0.0:{port}
+      management_address=http://0.0.0.0:8081
+      metrics_address=http://0.0.0.0:8082
+      enable_metrics_api=true
+      metrics_format=prometheus
+      number_of_netty_threads=4
+      job_queue_size=10
+      service_envelope=kfserving
+      model_store=/home/model-server/model-store
+      model_snapshot={{"name":"startup.cfg","modelCount":1,"models":{{"{mar_model_name}":{{"{version}":{{"defaultVersion":true,"marName":"{mar_model_name}.mar","minWorkers":1,"maxWorkers":5,"batchSize":1,"maxBatchDelay":5000,"responseTimeout":120}}}}}}}}
+      """
 
-          Path(output_pth).mkdir(parents=True, exist_ok=True)
+          # write to artifact dir
+          properties_path = os.path.join(cifar_config.path, 'config.properties')
+          with open(properties_path, "w") as f:
+            f.write(config_properties)
 
-          trainset = torchvision.datasets.CIFAR10(
-              root="./", train=True, download=True
-          )
-          testset = torchvision.datasets.CIFAR10(
-              root="./", train=False, download=True
-          )
+          torchserve_dockerfile_str = f"""FROM pytorch/torchserve:0.3.0-cpu
 
-          Path(output_pth + "/train").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/val").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/test").mkdir(parents=True, exist_ok=True)
+      RUN pip install --upgrade pip
+      RUN pip install grpcio==1.32.0
+      RUN pip install pytorch-lightning
 
-          random_seed = 25
-          y = trainset.targets
-          trainset, valset, y_train, y_val = train_test_split(
-              trainset,
-              y,
-              stratify=y,
-              shuffle=True,
-              test_size=0.2,
-              random_state=random_seed,
-          )
-
-          for name in [(trainset, "train"), (valset, "val"), (testset, "test")]:
-              with wds.ShardWriter(
-                  output_pth + "/" + str(name[1]) + "/" + str(name[1]) + "-%d.tar",
-                  maxcount=1000,
-              ) as sink:
-                  for index, (image, cls) in enumerate(name[0]):
-                      sink.write(
-                          {"__key__": "%06d" % index, "ppm": image, "cls": cls}
-                      )
-
-          entry_point = ["ls", "-R", output_pth]
-          run_code = subprocess.run(entry_point, stdout=subprocess.PIPE)
-          print(run_code.stdout)
+      COPY config.properties /home/model-server/config.properties
+      COPY {mar_model_name}.mar /home/model-server/model-store/
+      """
+          # write to artifact dir
+          dockerfile_path = os.path.join(cifar_config.path, 'Dockerfile')
+          with open(dockerfile_path, "w") as f:
+            f.write(torchserve_dockerfile_str)
 
 
       def executor_main():
@@ -881,6 +873,12 @@ implementation:
     - --executor_input
     - {executorInput: null}
     - --function_to_execute
-    - cifar_preproc
-    - --cifar-dataset-output-path
-    - {outputPath: cifar_dataset}
+    - cifar_config
+    - --mar-model-name-output-path
+    - {inputValue: mar_model_name}
+    - --version-output-path
+    - {inputValue: version}
+    - --port-output-path
+    - {inputValue: port}
+    - --cifar-config-output-path
+    - {outputPath: cifar_config}

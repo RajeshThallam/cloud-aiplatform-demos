@@ -1,10 +1,22 @@
-name: Cifar preproc
+name: Build tb image
+inputs:
+- {name: project, type: String}
+- {name: project_num, type: String}
+- {name: zone, type: String}
+- {name: cifar_model, type: Model}
+- {name: training_path_info, type: String}
 outputs:
-- {name: cifar_dataset, type: Dataset}
+- {name: tb_config, type: Artifact}
+- {name: tb_serving_container_uri, type: String}
 implementation:
   container:
-    image: gcr.io/google-samples/pytorch-pl:v1
+    image: gcr.io/deeplearning-platform-release/tf2-gpu.2-3:latest
     command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'google-cloud-notebooks' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install
+      --quiet --no-warn-script-location 'google-cloud-notebooks' --user) && "$0" "$@"
     - sh
     - -ec
     - |
@@ -802,59 +814,138 @@ implementation:
           self._write_executor_output(result)
 
 
-      def cifar_preproc(
-          cifar_dataset: Output[Dataset],
-      ):
+      def build_tb_image(
+          project: str,
+          project_num: str,
+          zone: str,
+          cifar_model: Input[Model],
+          training_path_info: str,
+          tb_config: Output[Artifact],
+      ) -> NamedTuple("Outputs", [("tb_serving_container_uri", str),],):
 
-          import subprocess
+          from datetime import datetime
           import logging
-          from pathlib import Path
+          import os
 
-          import torchvision
-          import webdataset as wds
-          from sklearn.model_selection import train_test_split
+          from pathlib import Path
+          import subprocess
+          import google.auth
+          from google.cloud.devtools import cloudbuild_v1
+          from google.cloud import notebooks
+
+          Path(tb_config.path).mkdir(parents=True, exist_ok=True)
+          Path(training_path_info).mkdir(parents=True, exist_ok=True)
 
           logging.getLogger().setLevel(logging.INFO)
-          logging.info("Dataset path is: %s", cifar_dataset.path)
-          output_pth = cifar_dataset.path
+          credentials, project_id = google.auth.default()
+          client = cloudbuild_v1.services.cloud_build.CloudBuildClient()
 
-          Path(output_pth).mkdir(parents=True, exist_ok=True)
+          # mar_model_name = f"{model_name}.mar"
+          build_version = datetime.now().strftime("%Y%m%d%H%M%S")
 
-          trainset = torchvision.datasets.CIFAR10(
-              root="./", train=True, download=True
+          # model_path = os.path.join(cifar_model.path, 'tensorboard')
+          model_path = cifar_model.path
+          model_path = model_path.replace("/gcs/", "gs://")
+          logging.info("model_path: %s", model_path)
+
+          dockerfile_str = f"""
+      FROM gcr.io/deeplearning-platform-release/tf2-gpu.2-3:latest
+
+      #RUN pip3 install torch_tb_profiler
+
+      RUN mkdir summaries
+      COPY summaries/* /summaries/
+
+      ENTRYPOINT ["tensorboard", "--bind_all", "--port", "8080", "--logdir", "/summaries"]
+      #ENTRYPOINT ["tensorboard", "--bind_all", "--port", "8080", "--logdir", "{model_path}"]
+
+      """
+
+          # write to artifact dir
+          dockerfile_path = os.path.join(tb_config.path, "Dockerfile")
+          with open(dockerfile_path, "w") as f:
+              f.write(dockerfile_str)
+
+          image_uri = f"gcr.io/{project}/tb_test:{build_version}"
+          logging.info("image uri: %s", image_uri)
+
+          build = cloudbuild_v1.Build(images=[image_uri])
+          build.steps = [
+              {
+                  "name": "ubuntu",
+                  "args": [
+                      "mkdir",
+                      "-p",
+                      model_path,
+                      "summaries",
+                  ],
+              },
+              {
+                  "name": "gcr.io/cloud-builders/gsutil",
+                  "args": [
+                      "cp",
+                      "-r",
+                      model_path,
+                      "summaries",
+                  ],
+              },
+              {
+                  "name": "gcr.io/cloud-builders/gsutil",
+                  "args": [
+                      "cp",
+                      dockerfile_path.replace("/gcs/", "gs://"),
+                      "Dockerfile",
+                  ],
+              },
+              {
+                  "name": "gcr.io/cloud-builders/docker",
+                  "args": ["build", "-t", image_uri, "."],
+              },
+          ]
+          operation = client.create_build(project_id=project, build=build)
+          print("IN PROGRESS:")
+          print(operation.metadata)
+
+          result = operation.result()
+          # Print the completed status
+          print("RESULT:", result.status)
+
+          logging.warning("creating tensorboard notebook instance")
+          print("creating tensorboard notebook instance")
+
+          # create tb 'notebook'
+          parent = f"projects/{project_num}/locations/{zone}"
+          notebooks_client = notebooks.NotebookServiceClient()
+          notebook_id = f"tb-nb{build_version}"
+          container_image = notebooks.ContainerImage(
+              {"repository": f"gcr.io/{project}/tb_test", "tag": f"{build_version}"}
           )
-          testset = torchvision.datasets.CIFAR10(
-              root="./", train=False, download=True
+          # Define instance information
+          instance = notebooks.Instance(
+              {
+                  "name": notebook_id,
+                  "machine_type": "n1-standard-4",
+                  "container_image": container_image,
+                  "no_public_ip": False,
+                  "metadata": {"agent-health-check-interval-seconds": "0"},
+                  "service_account": "default",
+                  # "service_account": "467744782358@developer.gserviceaccount.com",
+              }
           )
-
-          Path(output_pth + "/train").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/val").mkdir(parents=True, exist_ok=True)
-          Path(output_pth + "/test").mkdir(parents=True, exist_ok=True)
-
-          random_seed = 25
-          y = trainset.targets
-          trainset, valset, y_train, y_val = train_test_split(
-              trainset,
-              y,
-              stratify=y,
-              shuffle=True,
-              test_size=0.2,
-              random_state=random_seed,
+          # Create a new AI Platform Notebook Instance
+          nb1 = notebooks_client.create_instance(
+              notebooks.CreateInstanceRequest(
+                  {
+                      "parent": parent,
+                      "instance_id": notebook_id,
+                      "instance": instance,
+                  }
+              )
           )
+          # List operation status
+          print(nb1.operation)
 
-          for name in [(trainset, "train"), (valset, "val"), (testset, "test")]:
-              with wds.ShardWriter(
-                  output_pth + "/" + str(name[1]) + "/" + str(name[1]) + "-%d.tar",
-                  maxcount=1000,
-              ) as sink:
-                  for index, (image, cls) in enumerate(name[0]):
-                      sink.write(
-                          {"__key__": "%06d" % index, "ppm": image, "cls": cls}
-                      )
-
-          entry_point = ["ls", "-R", output_pth]
-          run_code = subprocess.run(entry_point, stdout=subprocess.PIPE)
-          print(run_code.stdout)
+          return (image_uri,)
 
 
       def executor_main():
@@ -881,6 +972,18 @@ implementation:
     - --executor_input
     - {executorInput: null}
     - --function_to_execute
-    - cifar_preproc
-    - --cifar-dataset-output-path
-    - {outputPath: cifar_dataset}
+    - build_tb_image
+    - --project-output-path
+    - {inputValue: project}
+    - --project-num-output-path
+    - {inputValue: project_num}
+    - --zone-output-path
+    - {inputValue: zone}
+    - --cifar-model-output-path
+    - {inputPath: cifar_model}
+    - --training-path-info-output-path
+    - {inputValue: training_path_info}
+    - --tb-config-output-path
+    - {outputPath: tb_config}
+    - --tb-serving-container-uri
+    - {outputPath: tb_serving_container_uri}

@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 
-import joblib
 import json
 import numpy as np
 import pickle
@@ -27,7 +26,7 @@ with open("preprocessor.pkl", "rb") as f:
     preprocessor = pickle.load(f)
 
 _class_names = load_iris().target_names
-_model = joblib.load("model.h5")
+_model = tf.keras.models.load_model("model.h5")
 _preprocessor = preprocessor
 
 
@@ -42,13 +41,15 @@ def health():
 @app.post(os.environ['AIP_PREDICT_ROUTE'])
 async def predict(request: Request):
     body = await request.json()
+    print(body)
 
     instances = body["instances"]
     inputs = np.asarray(instances)
     preprocessed_inputs = _preprocessor.preprocess(inputs)
     outputs = _model.predict(preprocessed_inputs)
+    print(outputs)
 
-    parameters = body["parameters"]
+    parameters = body.get("parameters", {})
     if parameters.get('probabilities'):
       return outputs.tolist()
     else:
