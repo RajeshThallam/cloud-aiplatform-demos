@@ -51,7 +51,7 @@ async def predict(request: Request):
 
     parameters = body.get("parameters", {})
     if parameters.get('probabilities'):
-      return {"predictions": outputs.tolist()}
+      return outputs.tolist()
     else:
       return {"predictions": [_class_names[class_num] for class_num 
                               in np.argmax(outputs, axis=1)]}
